@@ -118,7 +118,7 @@ fn find_resources_dir(app: &AppHandle) -> Option<String> {
     None
 }
 
-fn random_token() -> String {
+pub fn random_token() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -165,7 +165,7 @@ pub fn spawn(
             .unwrap_or_else(app_dir)
     };
 
-    let child = Command::new(node)
+    let child = Command::new(&node)
         .arg(&core_script)
         .current_dir(cwd)
         .envs(envs)

@@ -46,7 +46,7 @@ pub fn run() {
     let core_token = sidecar::random_token();
     let native_token = sidecar::random_token();
 
-    let app = tauri::Builder::default()
+    tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
