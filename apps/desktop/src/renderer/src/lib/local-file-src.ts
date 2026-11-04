@@ -1,15 +1,16 @@
 /**
- * Convert a local filesystem path into a `file://` URL the renderer can load.
+ * Convert a local filesystem path into a URL the renderer can load.
  *
- * App-protocol URLs (`vidbee://...`) are already playable and are returned as-is.
+ * Under Tauri, local media is streamed through the `vidbee-file://` custom
+ * scheme proxied by the shell. App-protocol URLs (`vidbee://...`) are already
+ * playable and are returned as-is.
  */
 export const toLocalFileSrc = (filePath: string): string => {
   if (/^(blob|data|file|https?|vidbee):/i.test(filePath)) {
     return filePath
   }
   const normalized = filePath.replace(/\\/g, '/')
-  const href = normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
-  return new URL(href).href
+  return `vidbee-file://${encodeURIComponent(normalized).replace(/%2F/gi, '/')}`
 }
 
 /**

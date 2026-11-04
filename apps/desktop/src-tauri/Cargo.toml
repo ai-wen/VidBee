@@ -1,0 +1,33 @@
+[package]
+name = "vidbee"
+version = "2.3.0"
+description = "Free, open-source desktop app to download media, create local transcripts, and ask AI"
+authors = ["VidBee"]
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+name = "vidbee_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+http = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

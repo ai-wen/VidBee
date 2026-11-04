@@ -1,3 +1,5 @@
+import './lib/tauri-adapter'
+import { installTauriRendererBridge } from './lib/tauri-adapter'
 import '@vitejs/plugin-react/preamble'
 import './assets/main.css'
 import './assets/global.css'
@@ -14,6 +16,8 @@ import {
   initGlitchTipRenderer
 } from './lib/glitchtip'
 import { logger } from './lib/logger'
+
+installTauriRendererBridge()
 
 initGlitchTipRenderer()
 

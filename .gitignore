@@ -26,3 +26,11 @@ statuses/
 .env
 .env.local
 .env.*.local
+
+apps/desktop/dist-core
+apps/desktop/dist-renderer
+apps/desktop/src-tauri/resources-ci
+apps/desktop/src-tauri/target
+apps/desktop/node-runtime-lock.json.bak
+.omo/
+apps/desktop/src-tauri/gen/

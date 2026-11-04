@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "resources": {
+      "resources-ci/dist-core/**": "dist-core/",
+      "resources-ci/ffmpeg/**": "ffmpeg/",
+      "resources-ci/node/**": "node/"
+    }
+  }
+}

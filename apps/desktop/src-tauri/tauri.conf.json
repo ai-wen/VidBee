@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VidBee",
+  "version": "2.3.0",
+  "identifier": "com.vidbee",
+  "build": {
+    "beforeDevCommand": "pnpm run build:renderer && pnpm run build:core",
+    "devUrl": "http://127.0.0.1:5183",
+    "beforeBuildCommand": "pnpm run build:renderer && pnpm run build:core",
+    "frontendDist": "../dist-renderer"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.png"],
+    "publisher": "VidBee"
+  }
+}

@@ -1,0 +1,184 @@
+name: Build Tauri Desktop
+
+# 手动触发：输入版本号，编译 Windows x64 绿色版与 macOS arm64 .app，并自动发布到 GitHub Release。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. 2.3.0 (tag: tauri-v2.3.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark release as prerelease'
+        required: false
+        type: boolean
+        default: false
+
+# 同一 ref 不并发发布，也绝不取消进行中的发布（避免半上传的 Release）。
+concurrency:
+  group: tauri-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-tauri:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+            rust-target: x86_64-pc-windows-msvc
+            artifact: VidBee-tauri-windows-x64
+          - os: macos-14
+            name: macos-arm64
+            rust-target: aarch64-apple-darwin
+            bundle-config: src-tauri/tauri.bundle.macos.json
+            artifact: VidBee-tauri-macos-arm64
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: apps/desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 下载 yt-dlp / ffmpeg / 捆绑的 Node 运行时到 apps/desktop/resources。
+      - name: Download runtime binaries
+        run: pnpm run setup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bundle sidecar core
+        run: pnpm run build:core
+
+      # macOS：打包资源复制进 src-tauri/resources-ci，
+      # 由 tauri.bundle.macos.json 的 resources 映射装入 .app 的 Resources 目录。
+      - name: Assemble bundle resources (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          rm -rf src-tauri/resources-ci
+          mkdir -p src-tauri/resources-ci
+          cp -r dist-core src-tauri/resources-ci/dist-core
+          cp -r resources/ffmpeg src-tauri/resources-ci/ffmpeg
+          cp -r resources/node src-tauri/resources-ci/node
+
+      # Windows：基础配置 bundle.active=false，只产出 exe，绿色版手工组装。
+      - name: Build Tauri app (Windows portable)
+        if: runner.os == 'Windows'
+        run: pnpm exec tauri build
+
+      # macOS：只产出 .app（不打 dmg）。
+      - name: Build Tauri app (macOS .app)
+        if: runner.os == 'macOS'
+        run: pnpm exec tauri build --config ${{ matrix.bundle-config }}
+
+      # Windows 绿色版：exe + dist-core + ffmpeg + node 同级摆放，
+      # 与 src-tauri/src/sidecar.rs 的 exe 目录探测逻辑一致。
+      - name: Collect Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ..\..\dist-tauri-artifacts | Out-Null
+          $portable = "VidBee-windows-x64-portable"
+          if (Test-Path $portable) { Remove-Item -Recurse -Force $portable }
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          Copy-Item src-tauri\target\release\vidbee.exe $portable\
+          Copy-Item dist-core $portable\dist-core -Recurse
+          Copy-Item resources\ffmpeg $portable\ffmpeg -Recurse
+          Copy-Item resources\node $portable\node -Recurse
+          Compress-Archive -Path $portable -DestinationPath ..\..\dist-tauri-artifacts\VidBee-windows-x64-portable.zip
+
+      # macOS：arm64 要求所有可执行文件都有签名（含 ad-hoc），否则捆绑的 node 会被内核杀掉。
+      - name: Collect macOS artifacts
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p ../../dist-tauri-artifacts
+          APP_PATH=$(find src-tauri/target/release/bundle -maxdepth 2 -name "*.app" | head -n 1)
+          codesign --force --deep --sign - "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "../../dist-tauri-artifacts/VidBee-macos-arm64.app.zip"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist-tauri-artifacts/**
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [build-tauri]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="tauri-v${VERSION}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: VidBee-tauri-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3.0.3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: VidBee Tauri ${{ inputs.version }}
+          body: |
+            Tauri builds of VidBee ${{ inputs.version }}.
+
+            - `VidBee-windows-x64-portable.zip` — Windows x64 portable (绿色版), no installer required.
+            - `VidBee-macos-arm64.app.zip` — macOS arm64 app bundle (unsigned, ad-hoc signed).
+
+            View the full changelog at [vidbee.org/changelog](https://vidbee.org/changelog/).
+          generate_release_notes: true
+          prerelease: ${{ inputs.prerelease }}
+          files: |
+            dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
