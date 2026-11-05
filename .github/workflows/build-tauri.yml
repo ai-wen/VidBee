@@ -93,6 +93,7 @@ jobs:
           cp -r dist-core src-tauri/resources-ci/dist-core
           cp -r resources/ffmpeg src-tauri/resources-ci/ffmpeg
           cp -r resources/node src-tauri/resources-ci/node
+          cp resources/yt-dlp_macos src-tauri/resources-ci/yt-dlp_macos
 
       # Windows：基础配置 bundle.active=false，只产出 exe，绿色版手工组装。
       - name: Build Tauri app (Windows portable)
@@ -116,8 +117,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
           Copy-Item src-tauri\target\release\vidbee.exe $portable\
           Copy-Item dist-core $portable\dist-core -Recurse
+          Copy-Item resources\yt-dlp.exe $portable\
           Copy-Item resources\ffmpeg $portable\ffmpeg -Recurse
           Copy-Item resources\node $portable\node -Recurse
+          if (-not (Test-Path $portable\yt-dlp.exe)) { throw "yt-dlp.exe missing from portable bundle" }
           Compress-Archive -Path $portable -DestinationPath ..\..\dist-tauri-artifacts\VidBee-windows-x64-portable.zip
 
       # macOS：arm64 要求所有可执行文件都有签名（含 ad-hoc），否则捆绑的 node 会被内核杀掉。
